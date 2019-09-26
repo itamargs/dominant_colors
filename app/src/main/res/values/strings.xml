@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Dominant colors</string>
+    <string name="request_permission">Please approve</string>
+    <string name="camera_error">camera error</string>
 </resources>
