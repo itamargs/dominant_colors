@@ -18,7 +18,6 @@ allprojects {
     repositories {
         google()
         jcenter()
-        mavenCentral() // for google guava (sorting elements fast)
         
     }
 }

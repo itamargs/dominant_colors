@@ -9,7 +9,6 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Camera;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
@@ -43,14 +42,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
-import androidx.palette.graphics.Palette;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -63,7 +60,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -83,18 +79,269 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     TextView tv_colourVal3;
     TextView tv_colourVal4;
     TextView tv_colourVal5;
-    TextView population1;
-    TextView population2;
-    TextView population3;
-    TextView population4;
-    TextView population5;
-    ImageButton pause;
+    TextView tv_population1;
+    TextView tv_population2;
+    TextView tv_population3;
+    TextView tv_population4;
+    TextView tv_population5;
+    ImageButton ib_pause;
 
-//    ColorShadeBox first = new ColorShadeBox();
-//    ColorShadeBox second = new ColorShadeBox();
-//    ColorShadeBox third = new ColorShadeBox();
-//    ColorShadeBox forth = new ColorShadeBox();
-//    ColorShadeBox fifth = new ColorShadeBox();
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        // init views
+
+        // iv_first i the most prominent color. iv_fifth is the fifth most common color
+        iv_first = findViewById(R.id.iv_color1);
+        iv_second = findViewById(R.id.iv_color2);
+        iv_third = findViewById(R.id.iv_color3);
+        iv_forth = findViewById(R.id.iv_color4);
+        iv_fifth = findViewById(R.id.iv_color5);
+
+        // shows rgb values for dominant colors
+        tv_colourVal1 = findViewById(R.id.tv_color1);
+        tv_colourVal2 = findViewById(R.id.tv_color2);
+        tv_colourVal3 = findViewById(R.id.tv_color3);
+        tv_colourVal4 = findViewById(R.id.tv_color4);
+        tv_colourVal5 = findViewById(R.id.tv_color5);
+
+        //show population in percentage from tottal image pixels
+        tv_population1 = findViewById(R.id.population1);
+        tv_population2 = findViewById(R.id.population2);
+        tv_population3 = findViewById(R.id.population3);
+        tv_population4 = findViewById(R.id.population4);
+        tv_population5 = findViewById(R.id.population5);
+
+        // init the view which shows the camera preview
+        mTextureView = findViewById(R.id.texture);
+
+        // file for saving camera pics
+        mFile = new File(getExternalFilesDir(null), "pic.jpg");
+
+        // init play/pause button
+        ib_pause = findViewById(R.id.ib_pause);
+        ib_pause.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                pauseCamera();
+            }
+        });
+
+    }
+
+
+    //invoked when new frame from preview availble
+    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
+            = new ImageReader.OnImageAvailableListener() {
+
+
+        @Override
+        public void onImageAvailable(ImageReader reader) {
+//            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
+
+
+            //New Frame has been processed");
+            Image image = reader.acquireNextImage();
+
+
+            // converts image to bitmap object for iterating on image pixels later
+            //https://stackoverflow.com/a/41776098
+            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+            byte[] bytes = new byte[buffer.capacity()];
+            buffer.get(bytes); //get bytes from the image buffer
+            // the reult bitmap containg camera preview from we working on
+            Bitmap bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+
+
+//            Bitmap bitmapImage = BitmapFactory.decodeResource(getResources(), R.drawable.dombitmap); //just for testing still images
+
+            // resizing bitmap for better performance
+            bitmapImage = Bitmap.createScaledBitmap(
+                    bitmapImage, 50, 50, false);
+
+
+            //Initialize the intArray with the same size as the number of pixels on the image
+            final int[] intArray = new int[bitmapImage.getWidth() * bitmapImage.getHeight()];
+            //copy pixel data from the Bitmap into the 'intArray' array
+            bitmapImage.getPixels(intArray, 0, bitmapImage.getWidth(), 0, 0, bitmapImage.getWidth(), bitmapImage.getHeight());
+
+
+//             insert bitmap pixels amount into Swatch object for later use.
+//             calculating only once for performance
+            boolean alreadySet = false;
+            if (!alreadySet) {
+                int pixelsInImage = bitmapImage.getWidth() * bitmapImage.getHeight();
+                Swatch.setPixelsInImage(pixelsInImage);
+                alreadySet = true;
+            }
+
+            // makes demanding calculation on another thread
+            new MyAsyncTask().execute(intArray);
+
+
+            // close image frame object after done using so will be ready for the next frame to come
+            if (image != null)
+                image.close();
+
+        }
+
+    };
+
+
+    /*     get the most common rgb values from the pixels array and put them in new list containig thier RGB values
+        As this is a demanding task i took this snippet from leetcode for better performance
+        https://leetcode.com/problems/top-k-frequent-elements/solution/
+        O(Nlog(k))*/
+    public List<Integer> topKFrequent(int[] nums, int k) {
+        // build hash map : character and how often it appears
+        final HashMap<Integer, Integer> count = new HashMap();
+        for (int n : nums) {
+            count.put(n, count.getOrDefault(n, 0) + 1);
+        }
+
+        // init heap 'the less frequent element first'
+        PriorityQueue<Integer> heap =
+                new PriorityQueue<Integer>(new Comparator<Integer>() {
+                    @Override
+                    public int compare(Integer n1, Integer n2) {
+                        return count.get(n1) - count.get(n2);
+                    }
+                });
+
+        // keep k top frequent elements in the heap
+        for (int n : count.keySet()) {
+            heap.add(n);
+            if (heap.size() > k)
+                heap.poll();
+        }
+
+        // build output list
+        List<Integer> top_k = new LinkedList();
+        while (!heap.isEmpty())
+            top_k.add(heap.poll());
+        Collections.reverse(top_k);
+        return top_k;
+    }
+
+
+    /*     Async task class for more demanding computing.
+         # gets 5 most common rgb values in pixels array
+         # count how many time each one from the 5 coomon vals are presented in the image
+         # create hash map with top 5 rgb value and thier population in the image -> {rgbVal: population}
+    */
+    private class MyAsyncTask extends AsyncTask<int[], Integer, List<Swatch>> {
+
+        @Override
+        protected List<Swatch> doInBackground(int[]... ints) {
+            int[] pixels = ints[0]; // input image pixels array
+            // gets top 5 rgb vals and put it in list
+            List<Integer> mfc = topKFrequent(pixels, 5);  //O(Nlog(k))
+
+            // map that will contains top 5 elements and their popolation
+            HashMap<Integer, Integer> rgbPopulation = new HashMap<>();
+
+
+            // puts top 5 rgbS in map and initiate  them with temp zeroes as values
+            //time complexity -> O(5)
+            for (Integer rgbVal : mfc)
+                rgbPopulation.put(rgbVal, 0);
+
+            // counts population for eac of the top 5 rgbS
+            //time complexity -> O(N)
+            for (int pixel : pixels) {
+                if (rgbPopulation.containsKey(pixel))
+                    rgbPopulation.put(pixel, rgbPopulation.get(pixel) + 1);
+            }
+
+
+            // will contain rgb values and more values needed to show later on the UI
+            // most common Swach is first and so on
+            ArrayList<Swatch> swatches = new ArrayList<>();
+
+            // Swatch is custom object i created to populate all values needed for showing in the UI
+            // init the Swatches list with each Swatch
+            int rank = 0; // rank 0 is the most ppopulated rgb rank 4 is the less common
+            for (int rgbVal : mfc) {
+                int currentPoopulation = rgbPopulation.get(rgbVal);
+                Swatch swatch = new Swatch(rgbVal, currentPoopulation, rank);
+                swatches.add(swatch);
+                rank++;
+            }
+
+            return swatches;
+        }
+
+        //after Async task job is done, init views with rgb values
+
+        @Override
+        protected void onPostExecute(List<Swatch> swatches) {
+            int index;
+            int size = swatches.size();
+            if (size > 0) {
+                index = 0;
+                iv_first.setColorFilter(swatches.get(index).rgb);
+                tv_population1.setText("%" + swatches.get(index).percentage);
+                tv_colourVal1.setText("R: " + swatches.get(index).r + " G: " + swatches.get(index).g + " B:" + swatches.get(index).b);
+            }
+            if (size > 1) {
+                index = 1;
+                iv_second.setColorFilter(swatches.get(index).rgb);
+                tv_population2.setText("%" + swatches.get(index).percentage);
+                tv_colourVal2.setText("R: " + swatches.get(index).r + " G: " + swatches.get(index).g + " B:" + swatches.get(index).b);
+            }
+            if (size > 2) {
+                index = 2;
+                iv_third.setColorFilter(swatches.get(index).rgb);
+                tv_population3.setText("%" + swatches.get(index).percentage);
+                tv_colourVal3.setText("R: " + swatches.get(index).r + " G: " + swatches.get(index).g + " B:" + swatches.get(index).b);
+            }
+            if (size > 3) {
+                index = 3;
+                iv_forth.setColorFilter(swatches.get(index).rgb);
+                tv_population4.setText("%" + swatches.get(index).percentage);
+                tv_colourVal4.setText("R: " + swatches.get(index).r + " G: " + swatches.get(index).g + " B:" + swatches.get(index).b);
+            }
+            if (size > 4) {
+                index = 4;
+                iv_fifth.setColorFilter(swatches.get(index).rgb);
+                tv_population5.setText("%" + swatches.get(index).percentage);
+                tv_colourVal5.setText("R: " + swatches.get(index).r + " G: " + swatches.get(index).g + " B:" + swatches.get(index).b);
+            }
+            super.onPostExecute(swatches);
+        }
+
+    }
+
+    // pause/play camera when clicking on pause button
+    private void pauseCamera() {
+        if (ib_pause.isActivated()) {
+            try {
+                mCaptureSession.setRepeatingRequest(mPreviewRequest,
+                        mCaptureCallback, mBackgroundHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+            ib_pause.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp);
+            ib_pause.setActivated(false);
+            return;
+        } else {
+            ib_pause.setImageResource(R.drawable.ic_play_circle_filled_black_24dp);
+            ib_pause.setActivated(true);
+            try {
+                mCaptureSession.stopRepeating();
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    /*  ---  FROM HERE ITS MOSTLY REGULAR FLOW OF THE CAMERA2 API   -----   */
+
+    //------------------------------------   END  -------------------------------------------------
 
 
     //         * Conversion from screen rotation to JPEG orientation.
@@ -163,199 +410,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     private File mFile; //This is the output file for our picture.
     //will be called when a still image is ready to be saved.
 
-    ////--------------------------------   START  -------------------------------------------------
-    private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
-            = new ImageReader.OnImageAvailableListener() {
 
-        //invoked when new frame from preview availble
-
-        @Override
-        public void onImageAvailable(ImageReader reader) {
-//            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
-
-            //todo maybe use thread here
-            //New Frame processed");
-            Image image = reader.acquireNextImage();
-
-
-            // converts image to bitmap.
-            //https://stackoverflow.com/a/41776098
-            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.capacity()];
-            buffer.get(bytes); //get bytes from the image buffer
-            Bitmap bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
-
-//            Bitmap bitmapImage = BitmapFactory.decodeResource(getResources(), R.drawable.dombitmap); //todo: on another thread
-
-            bitmapImage = Bitmap.createScaledBitmap(
-                    bitmapImage, 50, 50, false);
-
-
-            //http://www.41post.com/4396/programming/android-bitmap-to-integer-array
-            //Initialize the intArray with the same size as the number of pixels on the image
-            final int[] intArray = new int[bitmapImage.getWidth() * bitmapImage.getHeight()];
-            //copy pixel data from the Bitmap into the 'intArray' array
-            bitmapImage.getPixels(intArray, 0, bitmapImage.getWidth(), 0, 0, bitmapImage.getWidth(), bitmapImage.getHeight());
-
-
-            //todo put it where it will launce only once
-            int pixelsInImage = bitmapImage.getWidth() * bitmapImage.getHeight();
-            ColorShadeBox.setPixelsInImage(pixelsInImage);
-
-
-            new MyAsyncTask().execute(intArray);
-
-
-            if (image != null)
-                image.close();
-
-        }
-
-    };
-
-
-    //https://leetcode.com/problems/top-k-frequent-elements/solution/
-    //O(Nlog(k))
-    public List<Integer> topKFrequent(int[] nums, int k) {
-        // build hash map : character and how often it appears
-        final HashMap<Integer, Integer> count = new HashMap();
-        for (int n : nums) {
-            count.put(n, count.getOrDefault(n, 0) + 1);
-        }
-
-        // init heap 'the less frequent element first'
-        PriorityQueue<Integer> heap =
-                new PriorityQueue<Integer>(new Comparator<Integer>() {
-                    @Override
-                    public int compare(Integer n1, Integer n2) {
-                        return count.get(n1) - count.get(n2);
-                    }
-                });
-
-        // keep k top frequent elements in the heap
-        for (int n : count.keySet()) {
-            heap.add(n);
-            if (heap.size() > k)
-                heap.poll();
-        }
-
-        // build output list
-        List<Integer> top_k = new LinkedList();
-        while (!heap.isEmpty())
-            top_k.add(heap.poll());
-        Collections.reverse(top_k);
-        return top_k;
-    }
-
-
-    private class MyAsyncTask extends AsyncTask<int[], Integer, List<ColorShadeBox>> {
-
-        @Override
-        protected List<ColorShadeBox> doInBackground(int[]... ints) {
-            int[] pixels = ints[0];
-            List<Integer> mfc = topKFrequent(pixels, 5);  //O(Nlog(k))
-
-            HashMap<Integer, Integer> rgbPopulation = new HashMap<>();
-
-            //time complexity -> O(5)
-            for (Integer rgbVal : mfc)
-                rgbPopulation.put(rgbVal, 0);
-
-            //time complexity -> O(N)
-            for (int pixel : pixels) {
-                if (rgbPopulation.containsKey(pixel))
-                    rgbPopulation.put(pixel, rgbPopulation.get(pixel) + 1);
-            }
-
-
-            ArrayList<ColorShadeBox> swatches = new ArrayList<>();
-
-            int rank = 0;
-            for (int rgbVal : mfc) {
-                int currentPoopulation = rgbPopulation.get(rgbVal);
-                ColorShadeBox swatch = new ColorShadeBox(rgbVal, currentPoopulation, rank);
-                swatches.add(swatch);
-                rank++;
-            }
-
-            return swatches;
-        }
-
-        //init views with rg values
-        @Override
-        protected void onPostExecute(List<ColorShadeBox> result) {
-            int index;
-            int size = result.size();
-            if (size > 0) {
-                index = 0;
-                iv_first.setColorFilter(result.get(index).rgb);
-                population1.setText("%" + result.get(index).percentage);
-                tv_colourVal1.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
-            }
-            if (size > 1) {
-                index = 1;
-                iv_second.setColorFilter(result.get(index).rgb);
-                population2.setText("%" + result.get(index).percentage);
-                tv_colourVal2.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
-            }
-            if (size > 2) {
-                index = 2;
-                iv_third.setColorFilter(result.get(index).rgb);
-                population3.setText("%" + result.get(index).percentage);
-                tv_colourVal3.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
-            }
-            if (size > 3) {
-                index = 3;
-                iv_forth.setColorFilter(result.get(index).rgb);
-                population4.setText("%" + result.get(index).percentage);
-                tv_colourVal4.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
-            }
-            if (size > 4) {
-                index = 4;
-                iv_fifth.setColorFilter(result.get(index).rgb);
-                population5.setText("%" + result.get(index).percentage);
-                tv_colourVal5.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
-            }
-            super.onPostExecute(result);
-        }
-
-    }
-
-    private void pauseCamera() {
-        if (pause.isActivated()) {
-            try {
-                mCaptureSession.setRepeatingRequest(mPreviewRequest,
-                        mCaptureCallback, mBackgroundHandler);
-            } catch (CameraAccessException e) {
-                e.printStackTrace();
-            }
-            pause.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp);
-            pause.setActivated(false);
-            return;
-        }
-
-        else {
-            pause.setImageResource(R.drawable.ic_play_circle_filled_black_24dp);
-            pause.setActivated(true);
-            try {
-                mCaptureSession.stopRepeating();
-            } catch (CameraAccessException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private void resumeCamera() {
-        try {
-            mCaptureSession.setRepeatingRequest(mPreviewRequest,
-                    mCaptureCallback, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-    }
-
-
-    //------------------------------------   END  -------------------------------------------------
     private CaptureRequest.Builder mPreviewRequestBuilder; //Builder} for the camera preview
     private CaptureRequest mPreviewRequest; //CaptureRequest} generated by mPreviewRequestBuilder
     private int mState = STATE_PREVIEW; //The current state of camera state for taking pictures
@@ -487,43 +542,6 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             Log.e(TAG, "Couldn't find any suitable preview size");
             return choices[0];
         }
-    }
-
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-
-        iv_first = findViewById(R.id.iv_color1);
-        iv_second = findViewById(R.id.iv_color2);
-        iv_third = findViewById(R.id.iv_color3);
-        iv_forth = findViewById(R.id.iv_color4);
-        iv_fifth = findViewById(R.id.iv_color5);
-        tv_colourVal1 = findViewById(R.id.tv_color1);
-        tv_colourVal2 = findViewById(R.id.tv_color2);
-        tv_colourVal3 = findViewById(R.id.tv_color3);
-        tv_colourVal4 = findViewById(R.id.tv_color4);
-        tv_colourVal5 = findViewById(R.id.tv_color5);
-        population1 = findViewById(R.id.population1);
-        population2 = findViewById(R.id.population2);
-        population3 = findViewById(R.id.population3);
-        population4 = findViewById(R.id.population4);
-        population5 = findViewById(R.id.population5);
-
-        mFile = new File(getExternalFilesDir(null), "pic.jpg");
-        mTextureView = findViewById(R.id.texture);
-
-
-        pause = findViewById(R.id.ib_pause);
-        pause.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                pauseCamera();
-            }
-        });
-
     }
 
 
