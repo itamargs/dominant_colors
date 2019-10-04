@@ -65,10 +65,22 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 
+
+/* ------------------------------------------------------------------------------------------
+
+Lots of code here is demanding by the Google "camera2" api so I moved my code
+to the beginning of this file (starting from here) so it will be clear whats code I wrote and whats is Camera2 api code.
+### The rest of the Camera2 api "flow" (which is from Google gitHub and I didn't wrote on my own) is marked clearly further bellow ###
+
+# I made some modifications for the Camera2 api will suits this project needs,
+mostly lower the size of the input for better performance and extracting camera preview into bitmap object
+
+# I used AutoFitTexture class from Google camera2 sample. this is a custom TextureView which extends "TextureView"
+
+---------------------------------------------------------------------------------------------*/
 public class MainActivity extends AppCompatActivity implements ActivityCompat.OnRequestPermissionsResultCallback {
-    //todo: set min sdk 21
 
-
+    // declaring views
     ImageView iv_first;
     ImageView iv_second;
     ImageView iv_third;
@@ -133,7 +145,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     }
 
 
-    //invoked when new frame from preview availble
+    //invoked when new frame from preview is availble
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
             = new ImageReader.OnImageAvailableListener() {
 
@@ -629,7 +641,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
                 CameraCharacteristics characteristics
                         = manager.getCameraCharacteristics(cameraId);
 
-                //todo: maybe implements front facing feature
+
 
                 // We don't use a front facing camera in this sample.
                 Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
