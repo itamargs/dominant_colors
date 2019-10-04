@@ -65,7 +65,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 
-
 /* ------------------------------------------------------------------------------------------
 
 Lots of code here is demanding by the Google "camera2" api so I moved my code
@@ -97,6 +96,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     TextView tv_population4;
     TextView tv_population5;
     ImageButton ib_pause;
+    static boolean skip = false; // skip any second frame to reduce process power and make views more readable
 
 
     @Override
@@ -158,48 +158,61 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             //New Frame has been processed");
             Image image = reader.acquireNextImage();
 
+            // reduce frame proccesing by half.
+            // more efficent and make numbers in views more readable
 
-            // converts image to bitmap object for iterating on image pixels later
-            //https://stackoverflow.com/a/41776098
-            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.capacity()];
-            buffer.get(bytes); //get bytes from the image buffer
-            // the reult bitmap containg camera preview from we working on
-            Bitmap bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+            // process any second image frame
+            if (!skip) {
 
-
-//            Bitmap bitmapImage = BitmapFactory.decodeResource(getResources(), R.drawable.dombitmap); //just for testing still images
-
-            // resizing bitmap for better performance
-            bitmapImage = Bitmap.createScaledBitmap(
-                    bitmapImage, 50, 50, false);
+                // converts image to bitmap object for iterating on image pixels later
+                //https://stackoverflow.com/a/41776098
+                ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+                byte[] bytes = new byte[buffer.capacity()];
+                buffer.get(bytes); //get bytes from the image buffer
+                // the result bitmap containg camera preview from we working on
+                Bitmap bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
 
 
-            //Initialize the intArray with the same size as the number of pixels on the image
-            final int[] intArray = new int[bitmapImage.getWidth() * bitmapImage.getHeight()];
-            //copy pixel data from the Bitmap into the 'intArray' array
-            bitmapImage.getPixels(intArray, 0, bitmapImage.getWidth(), 0, 0, bitmapImage.getWidth(), bitmapImage.getHeight());
+//                Bitmap bitmapImage = BitmapFactory.decodeResource(getResources(), R.drawable.blacbitmap); //just for testing still images
+
+                // resizing bitmap for better performance
+                bitmapImage = Bitmap.createScaledBitmap(
+                        bitmapImage, 50, 50, false);
+
+
+                //Initialize the intArray with the same size as the number of pixels on the image
+                final int[] intArray = new int[bitmapImage.getWidth() * bitmapImage.getHeight()];
+                //copy pixel data from the Bitmap into the 'intArray' array
+                bitmapImage.getPixels(intArray, 0, bitmapImage.getWidth(), 0, 0, bitmapImage.getWidth(), bitmapImage.getHeight());
 
 
 //             insert bitmap pixels amount into Swatch object for later use.
 //             calculating only once for performance
-            boolean alreadySet = false;
-            if (!alreadySet) {
-                int pixelsInImage = bitmapImage.getWidth() * bitmapImage.getHeight();
-                Swatch.setPixelsInImage(pixelsInImage);
-                alreadySet = true;
+                boolean alreadySet = false;
+                if (!alreadySet) {
+                    int pixelsInImage = bitmapImage.getWidth() * bitmapImage.getHeight();
+                    Swatch.setPixelsInImage(pixelsInImage);
+                    alreadySet = true;
+                }
+
+                // makes demanding calculation on another thread
+                new MyAsyncTask().execute(intArray);
+
+
             }
-
-            // makes demanding calculation on another thread
-            new MyAsyncTask().execute(intArray);
-
+            Log.d(TAG, "onImageAvailable: " + skip);
 
             // close image frame object after done using so will be ready for the next frame to come
             if (image != null)
                 image.close();
 
-        }
 
+            if (skip)
+                skip = false;
+            else {
+                skip = true;
+            }
+        }
     };
 
 
@@ -640,7 +653,6 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             for (String cameraId : manager.getCameraIdList()) {
                 CameraCharacteristics characteristics
                         = manager.getCameraCharacteristics(cameraId);
-
 
 
                 // We don't use a front facing camera in this sample.
