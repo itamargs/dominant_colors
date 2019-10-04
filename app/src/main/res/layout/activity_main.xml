@@ -185,4 +185,18 @@
         app:layout_constraintStart_toStartOf="parent"
         tools:layout_editor_absoluteY="53dp" />
 
+    <ImageButton
+        android:id="@+id/ib_pause"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:layout_marginStart="44dp"
+        android:layout_marginBottom="308dp"
+        android:background="#00FFFFFF"
+        android:scaleType="fitCenter"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="1.0"
+        app:srcCompat="@drawable/ic_pause_circle_filled_black_24dp" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

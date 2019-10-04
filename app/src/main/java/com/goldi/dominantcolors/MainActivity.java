@@ -9,6 +9,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Camera;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
@@ -35,6 +36,8 @@ import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
+import android.view.View;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -85,6 +88,7 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     TextView population3;
     TextView population4;
     TextView population5;
+    ImageButton pause;
 
 //    ColorShadeBox first = new ColorShadeBox();
 //    ColorShadeBox second = new ColorShadeBox();
@@ -158,6 +162,8 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     private ImageReader mImageReader; //ImageReader} that handles still image capture.
     private File mFile; //This is the output file for our picture.
     //will be called when a still image is ready to be saved.
+
+    ////--------------------------------   START  -------------------------------------------------
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
             = new ImageReader.OnImageAvailableListener() {
 
@@ -240,7 +246,6 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         Collections.reverse(top_k);
         return top_k;
     }
-//-------------------------------------------------------------------------
 
 
     private class MyAsyncTask extends AsyncTask<int[], Integer, List<ColorShadeBox>> {
@@ -314,95 +319,43 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             super.onPostExecute(result);
         }
 
-
     }
 
-
-/*
-
-//------------------------------------------------------------
-        Palette.Swatch s1, s2, s3, s4, s5;
-
-        final Palette.Swatch[] maxSwatchArr = new Palette.Swatch[5];
-        //get populations
-        ArrayList<Integer> arr = new ArrayList<>();
-        for (int i = 0, count = p.getSwatches().size(); i < count; i++) {
-            Palette.Swatch swatch = p.getSwatches().get(i);
-            arr.add(swatch.getPopulation());
-        }
-        List<Integer> populationArr = Ordering.natural()
-                .greatestOf(arr, 5);
-
-
-        int COLOR_WITH_MAX_POPOLATION = populationArr.get(populationArr.size() - 1);
-
-
-        int maxPop = Integer.MIN_VALUE;
-        Palette.Swatch maxSwatch = null;
-        for (int i = 0, count = p.getSwatches().size(); i < count; i++) {
-            Palette.Swatch swatch = p.getSwatches().get(i);
-            if (swatch.getPopulation() >= COLOR_WITH_MAX_POPOLATION)
-                for (int j = 0; j < 5; j++) {
-                    if (swatch.getPopulation() == populationArr.get(j)) {
-                        maxSwatchArr[j] = swatch;
-                        break;
-                    }
-                }
-
-        }
-        //------------------------------------------------------------
-
-
-        first.updateSwatch(maxSwatchArr[0], 1);
-        second.updateSwatch(maxSwatchArr[1], 2);
-        third.updateSwatch(maxSwatchArr[2], 3);
-        forth.updateSwatch(maxSwatchArr[3], 4);
-        fifth.updateSwatch(maxSwatchArr[4], 5);
-
-
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-
-                if (first.swatch != null) {
-                    iv_first.setColorFilter(maxSwatchArr[0].getRgb());
-                    tv_colourVal1.setText("R: " + first.r + " G: " + first.g + " B:" + first.b);
-                    population1.setText("%" + first.population);
-                }
-
-                if (second.swatch != null) {
-                    iv_second.setColorFilter(maxSwatchArr[1].getRgb());
-                    tv_colourVal2.setText("R: " + second.r + " G: " + second.g + " B:" + second.b);
-                    population2.setText("%" + second.population);
-                }
-
-                if (third.swatch != null) {
-                    iv_third.setColorFilter(maxSwatchArr[2].getRgb());
-                    tv_colourVal3.setText("R: " + third.r + " G: " + third.g + " B:" + third.b);
-                    population3.setText("%" + third.population);
-                }
-
-                if (forth.swatch != null) {
-                    iv_forth.setColorFilter(maxSwatchArr[3].getRgb());
-                    tv_colourVal4.setText("R: " + forth.r + " G: " + forth.g + " B:" + forth.b);
-                    population4.setText("%" + forth.population);
-                }
-
-                if (fifth.swatch != null) {
-                    iv_fifth.setColorFilter(maxSwatchArr[4].getRgb());
-                    tv_colourVal5.setText("R: " + fifth.r + " G: " + fifth.g + " B:" + fifth.b);
-                    population5.setText("%" + fifth.population);
-                }
-
+    private void pauseCamera() {
+        if (pause.isActivated()) {
+            try {
+                mCaptureSession.setRepeatingRequest(mPreviewRequest,
+                        mCaptureCallback, mBackgroundHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
             }
-        });
+            pause.setImageResource(R.drawable.ic_pause_circle_filled_black_24dp);
+            pause.setActivated(false);
+            return;
+        }
 
-
+        else {
+            pause.setImageResource(R.drawable.ic_play_circle_filled_black_24dp);
+            pause.setActivated(true);
+            try {
+                mCaptureSession.stopRepeating();
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
-*/
+    private void resumeCamera() {
+        try {
+            mCaptureSession.setRepeatingRequest(mPreviewRequest,
+                    mCaptureCallback, mBackgroundHandler);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
 
 
+    //------------------------------------   END  -------------------------------------------------
     private CaptureRequest.Builder mPreviewRequestBuilder; //Builder} for the camera preview
     private CaptureRequest mPreviewRequest; //CaptureRequest} generated by mPreviewRequestBuilder
     private int mState = STATE_PREVIEW; //The current state of camera state for taking pictures
@@ -563,7 +516,16 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
         mTextureView = findViewById(R.id.texture);
 
 
+        pause = findViewById(R.id.ib_pause);
+        pause.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                pauseCamera();
+            }
+        });
+
     }
+
 
     //handles several lifecycle events on camera
     private final TextureView.SurfaceTextureListener mSurfaceTextureListener
