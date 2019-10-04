@@ -1,9 +1,14 @@
-//  Copyright 2014 The Android Open Source Project
+
+ //Copyright 2014 The Android Open Source Project
+
 
 package com.goldi.dominantcolors;
 
 
-// This used to show the camera view on the screen. This is custom class fot the Texture view:
+//todo: check and handle device compatibility
+
+// Extends TextureView
+// Automatically adjust its size to fit a given aspect ratio while displaying camera view
 
 
  /*

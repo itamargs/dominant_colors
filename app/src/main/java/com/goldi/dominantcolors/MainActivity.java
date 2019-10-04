@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
@@ -24,6 +26,7 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -32,7 +35,8 @@ import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
-import android.view.View;
+import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -43,6 +47,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.Fragment;
+import androidx.palette.graphics.Palette;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -52,13 +57,40 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
 
 public class MainActivity extends AppCompatActivity implements ActivityCompat.OnRequestPermissionsResultCallback {
     //todo: set min sdk 21
+
+
+    ImageView iv_first;
+    ImageView iv_second;
+    ImageView iv_third;
+    ImageView iv_forth;
+    ImageView iv_fifth;
+    TextView tv_colourVal1;
+    TextView tv_colourVal2;
+    TextView tv_colourVal3;
+    TextView tv_colourVal4;
+    TextView tv_colourVal5;
+    TextView population1;
+    TextView population2;
+    TextView population3;
+    TextView population4;
+    TextView population5;
+
+//    ColorShadeBox first = new ColorShadeBox();
+//    ColorShadeBox second = new ColorShadeBox();
+//    ColorShadeBox third = new ColorShadeBox();
+//    ColorShadeBox forth = new ColorShadeBox();
+//    ColorShadeBox fifth = new ColorShadeBox();
 
 
     //         * Conversion from screen rotation to JPEG orientation.
@@ -86,32 +118,6 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     private static final int STATE_PICTURE_TAKEN = 4; // Camera state: Picture was taken.
     private static final int MAX_PREVIEW_WIDTH = 1920; //Max preview width that is guaranteed by Camera2 API
     private static final int MAX_PREVIEW_HEIGHT = 1080; //Max preview height guaranteed by Camera2 API
-
-
-    //handles several lifecycle events on camera
-    private final TextureView.SurfaceTextureListener mSurfaceTextureListener
-            = new TextureView.SurfaceTextureListener() {
-
-        @Override
-        public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
-            openCamera(width, height);
-        }
-
-        @Override
-        public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
-            configureTransform(width, height);
-        }
-
-        @Override
-        public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
-            return true;
-        }
-
-        @Override
-        public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-        }
-
-    };
 
 
     private String mCameraId; //ID of the current {@link CameraDevice}.
@@ -155,12 +161,248 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     private final ImageReader.OnImageAvailableListener mOnImageAvailableListener
             = new ImageReader.OnImageAvailableListener() {
 
+        //invoked when new frame from preview availble
+
         @Override
         public void onImageAvailable(ImageReader reader) {
-            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
+//            mBackgroundHandler.post(new ImageSaver(reader.acquireNextImage(), mFile));
+
+            //todo maybe use thread here
+            //New Frame processed");
+            Image image = reader.acquireNextImage();
+
+
+            // converts image to bitmap.
+            //https://stackoverflow.com/a/41776098
+            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+            byte[] bytes = new byte[buffer.capacity()];
+            buffer.get(bytes); //get bytes from the image buffer
+            Bitmap bitmapImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, null);
+
+//            Bitmap bitmapImage = BitmapFactory.decodeResource(getResources(), R.drawable.dombitmap); //todo: on another thread
+
+            bitmapImage = Bitmap.createScaledBitmap(
+                    bitmapImage, 50, 50, false);
+
+
+            //http://www.41post.com/4396/programming/android-bitmap-to-integer-array
+            //Initialize the intArray with the same size as the number of pixels on the image
+            final int[] intArray = new int[bitmapImage.getWidth() * bitmapImage.getHeight()];
+            //copy pixel data from the Bitmap into the 'intArray' array
+            bitmapImage.getPixels(intArray, 0, bitmapImage.getWidth(), 0, 0, bitmapImage.getWidth(), bitmapImage.getHeight());
+
+
+            //todo put it where it will launce only once
+            int pixelsInImage = bitmapImage.getWidth() * bitmapImage.getHeight();
+            ColorShadeBox.setPixelsInImage(pixelsInImage);
+
+
+            new MyAsyncTask().execute(intArray);
+
+
+            if (image != null)
+                image.close();
+
         }
 
     };
+
+
+    //https://leetcode.com/problems/top-k-frequent-elements/solution/
+    //O(Nlog(k))
+    public List<Integer> topKFrequent(int[] nums, int k) {
+        // build hash map : character and how often it appears
+        final HashMap<Integer, Integer> count = new HashMap();
+        for (int n : nums) {
+            count.put(n, count.getOrDefault(n, 0) + 1);
+        }
+
+        // init heap 'the less frequent element first'
+        PriorityQueue<Integer> heap =
+                new PriorityQueue<Integer>(new Comparator<Integer>() {
+                    @Override
+                    public int compare(Integer n1, Integer n2) {
+                        return count.get(n1) - count.get(n2);
+                    }
+                });
+
+        // keep k top frequent elements in the heap
+        for (int n : count.keySet()) {
+            heap.add(n);
+            if (heap.size() > k)
+                heap.poll();
+        }
+
+        // build output list
+        List<Integer> top_k = new LinkedList();
+        while (!heap.isEmpty())
+            top_k.add(heap.poll());
+        Collections.reverse(top_k);
+        return top_k;
+    }
+//-------------------------------------------------------------------------
+
+
+    private class MyAsyncTask extends AsyncTask<int[], Integer, List<ColorShadeBox>> {
+
+        @Override
+        protected List<ColorShadeBox> doInBackground(int[]... ints) {
+            int[] pixels = ints[0];
+            List<Integer> mfc = topKFrequent(pixels, 5);  //O(Nlog(k))
+
+            HashMap<Integer, Integer> rgbPopulation = new HashMap<>();
+
+            //time complexity -> O(5)
+            for (Integer rgbVal : mfc)
+                rgbPopulation.put(rgbVal, 0);
+
+            //time complexity -> O(N)
+            for (int pixel : pixels) {
+                if (rgbPopulation.containsKey(pixel))
+                    rgbPopulation.put(pixel, rgbPopulation.get(pixel) + 1);
+            }
+
+
+            ArrayList<ColorShadeBox> swatches = new ArrayList<>();
+
+            int rank = 0;
+            for (int rgbVal : mfc) {
+                int currentPoopulation = rgbPopulation.get(rgbVal);
+                ColorShadeBox swatch = new ColorShadeBox(rgbVal, currentPoopulation, rank);
+                swatches.add(swatch);
+                rank++;
+            }
+
+            return swatches;
+        }
+
+        //init views with rg values
+        @Override
+        protected void onPostExecute(List<ColorShadeBox> result) {
+            int index;
+            int size = result.size();
+            if (size > 0) {
+                index = 0;
+                iv_first.setColorFilter(result.get(index).rgb);
+                population1.setText("%" + result.get(index).percentage);
+                tv_colourVal1.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
+            }
+            if (size > 1) {
+                index = 1;
+                iv_second.setColorFilter(result.get(index).rgb);
+                population2.setText("%" + result.get(index).percentage);
+                tv_colourVal2.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
+            }
+            if (size > 2) {
+                index = 2;
+                iv_third.setColorFilter(result.get(index).rgb);
+                population3.setText("%" + result.get(index).percentage);
+                tv_colourVal3.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
+            }
+            if (size > 3) {
+                index = 3;
+                iv_forth.setColorFilter(result.get(index).rgb);
+                population4.setText("%" + result.get(index).percentage);
+                tv_colourVal4.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
+            }
+            if (size > 4) {
+                index = 4;
+                iv_fifth.setColorFilter(result.get(index).rgb);
+                population5.setText("%" + result.get(index).percentage);
+                tv_colourVal5.setText("R: " + result.get(index).r + " G: " + result.get(index).g + " B:" + result.get(index).b);
+            }
+            super.onPostExecute(result);
+        }
+
+
+    }
+
+
+/*
+
+//------------------------------------------------------------
+        Palette.Swatch s1, s2, s3, s4, s5;
+
+        final Palette.Swatch[] maxSwatchArr = new Palette.Swatch[5];
+        //get populations
+        ArrayList<Integer> arr = new ArrayList<>();
+        for (int i = 0, count = p.getSwatches().size(); i < count; i++) {
+            Palette.Swatch swatch = p.getSwatches().get(i);
+            arr.add(swatch.getPopulation());
+        }
+        List<Integer> populationArr = Ordering.natural()
+                .greatestOf(arr, 5);
+
+
+        int COLOR_WITH_MAX_POPOLATION = populationArr.get(populationArr.size() - 1);
+
+
+        int maxPop = Integer.MIN_VALUE;
+        Palette.Swatch maxSwatch = null;
+        for (int i = 0, count = p.getSwatches().size(); i < count; i++) {
+            Palette.Swatch swatch = p.getSwatches().get(i);
+            if (swatch.getPopulation() >= COLOR_WITH_MAX_POPOLATION)
+                for (int j = 0; j < 5; j++) {
+                    if (swatch.getPopulation() == populationArr.get(j)) {
+                        maxSwatchArr[j] = swatch;
+                        break;
+                    }
+                }
+
+        }
+        //------------------------------------------------------------
+
+
+        first.updateSwatch(maxSwatchArr[0], 1);
+        second.updateSwatch(maxSwatchArr[1], 2);
+        third.updateSwatch(maxSwatchArr[2], 3);
+        forth.updateSwatch(maxSwatchArr[3], 4);
+        fifth.updateSwatch(maxSwatchArr[4], 5);
+
+
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+
+                if (first.swatch != null) {
+                    iv_first.setColorFilter(maxSwatchArr[0].getRgb());
+                    tv_colourVal1.setText("R: " + first.r + " G: " + first.g + " B:" + first.b);
+                    population1.setText("%" + first.population);
+                }
+
+                if (second.swatch != null) {
+                    iv_second.setColorFilter(maxSwatchArr[1].getRgb());
+                    tv_colourVal2.setText("R: " + second.r + " G: " + second.g + " B:" + second.b);
+                    population2.setText("%" + second.population);
+                }
+
+                if (third.swatch != null) {
+                    iv_third.setColorFilter(maxSwatchArr[2].getRgb());
+                    tv_colourVal3.setText("R: " + third.r + " G: " + third.g + " B:" + third.b);
+                    population3.setText("%" + third.population);
+                }
+
+                if (forth.swatch != null) {
+                    iv_forth.setColorFilter(maxSwatchArr[3].getRgb());
+                    tv_colourVal4.setText("R: " + forth.r + " G: " + forth.g + " B:" + forth.b);
+                    population4.setText("%" + forth.population);
+                }
+
+                if (fifth.swatch != null) {
+                    iv_fifth.setColorFilter(maxSwatchArr[4].getRgb());
+                    tv_colourVal5.setText("R: " + fifth.r + " G: " + fifth.g + " B:" + fifth.b);
+                    population5.setText("%" + fifth.population);
+                }
+
+            }
+        });
+
+
+    }
+
+*/
+
+
     private CaptureRequest.Builder mPreviewRequestBuilder; //Builder} for the camera preview
     private CaptureRequest mPreviewRequest; //CaptureRequest} generated by mPreviewRequestBuilder
     private int mState = STATE_PREVIEW; //The current state of camera state for taking pictures
@@ -299,11 +541,55 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+
+        iv_first = findViewById(R.id.iv_color1);
+        iv_second = findViewById(R.id.iv_color2);
+        iv_third = findViewById(R.id.iv_color3);
+        iv_forth = findViewById(R.id.iv_color4);
+        iv_fifth = findViewById(R.id.iv_color5);
+        tv_colourVal1 = findViewById(R.id.tv_color1);
+        tv_colourVal2 = findViewById(R.id.tv_color2);
+        tv_colourVal3 = findViewById(R.id.tv_color3);
+        tv_colourVal4 = findViewById(R.id.tv_color4);
+        tv_colourVal5 = findViewById(R.id.tv_color5);
+        population1 = findViewById(R.id.population1);
+        population2 = findViewById(R.id.population2);
+        population3 = findViewById(R.id.population3);
+        population4 = findViewById(R.id.population4);
+        population5 = findViewById(R.id.population5);
+
         mFile = new File(getExternalFilesDir(null), "pic.jpg");
         mTextureView = findViewById(R.id.texture);
 
+
     }
 
+    //handles several lifecycle events on camera
+    private final TextureView.SurfaceTextureListener mSurfaceTextureListener
+            = new TextureView.SurfaceTextureListener() {
+
+        @Override
+        public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
+            openCamera(width, height);
+        }
+
+        @Override
+        public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
+            configureTransform(width, height);
+        }
+
+        @Override
+        public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
+            return true;
+        }
+
+        @Override
+        public void onSurfaceTextureUpdated(SurfaceTexture texture) {
+
+        }
+
+    };
 
     @Override
     public void onResume() {
@@ -363,6 +649,8 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
                 CameraCharacteristics characteristics
                         = manager.getCameraCharacteristics(cameraId);
 
+                //todo: maybe implements front facing feature
+
                 // We don't use a front facing camera in this sample.
                 Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
                 if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
@@ -379,7 +667,9 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
                 Size largest = Collections.max(
                         Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)),
                         new CompareSizesByArea());
-                mImageReader = ImageReader.newInstance(largest.getWidth(), largest.getHeight(),
+                // @itamar -  lower image resulotion
+//                mImageReader = ImageReader.newInstance(largest.getWidth() / 16, largest.getHeight() / 16,
+                mImageReader = ImageReader.newInstance(100, 100,
                         ImageFormat.JPEG, /*maxImages*/2);
                 mImageReader.setOnImageAvailableListener(
                         mOnImageAvailableListener, mBackgroundHandler);
@@ -543,9 +833,18 @@ public class MainActivity extends AppCompatActivity implements ActivityCompat.On
             // This is the output Surface we need to start preview.
             Surface surface = new Surface(texture);
 
+            //@Itamar - create new surface for the camera preview
+            Surface imageSurface = mImageReader.getSurface();
+
+
             // We set up a CaptureRequest.Builder with the output Surface.
             mPreviewRequestBuilder
                     = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+
+            //@Itamar - add image surface to target builder
+            mPreviewRequestBuilder.addTarget(imageSurface);
+
+
             mPreviewRequestBuilder.addTarget(surface);
 
             // Here, we create a CameraCaptureSession for camera preview.
