@@ -27,7 +27,7 @@
                     android:id="@+id/iv_color1"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
-                    android:tint="@color/colorAccent"
+                    android:tint="#000000"
                     app:srcCompat="?attr/colorAccent" />
 
                 <TextView
@@ -59,7 +59,7 @@
                     android:id="@+id/iv_color2"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
-                    android:tint="@color/colorAccent"
+                    android:tint="#000000"
                     app:srcCompat="?attr/colorAccent" />
 
                 <TextView
@@ -91,7 +91,7 @@
                     android:id="@+id/iv_color3"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
-                    android:tint="@color/colorAccent"
+                    android:tint="#000000"
                     app:srcCompat="?attr/colorAccent" />
 
                 <TextView
@@ -123,7 +123,7 @@
                     android:id="@+id/iv_color4"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
-                    android:tint="@color/colorAccent"
+                    android:tint="#000000"
                     app:srcCompat="?attr/colorAccent" />
 
                 <TextView
@@ -155,7 +155,7 @@
                     android:id="@+id/iv_color5"
                     android:layout_width="match_parent"
                     android:layout_height="50dp"
-                    android:tint="@color/colorAccent"
+                    android:tint="#000000"
                     app:srcCompat="?attr/colorAccent" />
 
                 <TextView
